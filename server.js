@@ -5,6 +5,8 @@ const { join, resolve } = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { parse } = require('csv-parse/sync');
 const QRCode = require('qrcode');
+const { guestCards } = require('./guest-cards');
+const cardCss = readFileSync(join(__dirname, 'guest-cards.css'), 'utf8');
 const { headers, template, rowsFromExcel } = require('./guest-excel');
 const { authenticated, credentialsMatch, signIn, signOut } = require('./auth');
 
@@ -97,6 +99,15 @@ async function handle(req, res) {
       return res.writeHead(303, { Location: '/login', 'Cache-Control': 'no-store' }).end();
     }
     return json(res, 401, { error: 'Silakan masuk kembali.' });
+  }
+  if (req.method === 'GET' && req.url === '/kartu-tamu.html') {
+    const html = await guestCards(listGuests.all(), cardCss);
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="kartu-tamu.html"',
+      'Cache-Control': 'no-store',
+    });
+    return res.end(html);
   }
   if (req.method === 'GET' && req.url === '/guests') {
     return json(res, 200, listGuests.all());
