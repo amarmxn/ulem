@@ -5,6 +5,7 @@ const { join, resolve } = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { parse } = require('csv-parse/sync');
 const QRCode = require('qrcode');
+const { headers, template, rowsFromExcel } = require('./guest-excel');
 const { authenticated, credentialsMatch, signIn, signOut } = require('./auth');
 
 const sampleGuests = JSON.parse(readFileSync(join(__dirname, 'guests.json'), 'utf8').replace(/^\uFEFF/, ''));
@@ -17,15 +18,19 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS guests (code TEXT PRIMARY KEY, name TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS checkins (code TEXT PRIMARY KEY, time TEXT NOT NULL);
 `);
+const columns = new Set(db.prepare('PRAGMA table_info(guests)').all().map(column => column.name));
+for (const column of headers.slice(1)) {
+  if (!columns.has(column)) db.exec("ALTER TABLE guests ADD COLUMN " + column + " TEXT NOT NULL DEFAULT ''");
+}
 const seedGuest = db.prepare('INSERT OR IGNORE INTO guests (code, name) VALUES (?, ?)');
 if (!process.env.RAILWAY_ENVIRONMENT_ID) {
   for (const [code, name] of Object.entries(sampleGuests)) seedGuest.run(code, name);
 }
 
-const addGuest = db.prepare('INSERT INTO guests (code, name) VALUES (?, ?)');
+const addGuest = db.prepare('INSERT INTO guests (code, name, tempat, no_whatsapp, notes) VALUES (?, ?, ?, ?, ?)');
 const findGuest = db.prepare('SELECT name FROM guests WHERE code = ?');
 const listGuests = db.prepare(`
-  SELECT guests.code, guests.name, checkins.time
+  SELECT guests.code, guests.name, guests.tempat, guests.no_whatsapp, guests.notes, checkins.time
   FROM guests LEFT JOIN checkins USING (code)
   ORDER BY guests.rowid
 `);
@@ -57,10 +62,10 @@ async function readBody(req, limit) {
   return body;
 }
 
-function saveGuests(names) {
+function saveGuests(rows) {
   db.exec('BEGIN');
   try {
-    for (const name of names) addGuest.run(randomBytes(16).toString('hex'), name);
+    for (const row of rows) addGuest.run(randomBytes(16).toString('hex'), ...row);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -96,33 +101,53 @@ async function handle(req, res) {
   if (req.method === 'GET' && req.url === '/guests') {
     return json(res, 200, listGuests.all());
   }
+  if (req.method === 'GET' && req.url === '/template-daftar-tamu.xls') {
+    const file = template();
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.ms-excel',
+      'Content-Disposition': 'attachment; filename="template-daftar-tamu.xls"',
+    });
+    return res.end(file);
+  }
   if (req.method === 'POST' && req.url === '/guests') {
-    const body = await readBody(req, 256_000);
+    const body = await readBody(req, 350_000);
     if (body === null) return json(res, 413, { error: 'Daftar terlalu besar.' });
-    let names;
+    let rows;
     try {
       const payload = JSON.parse(body);
       if (typeof payload.name === 'string') {
-        names = [payload.name.trim()];
-      } else if (typeof payload.csv === 'string') {
-        const [header, ...rows] = parse(payload.csv, { bom: true, skip_empty_lines: true, trim: true });
-        if (header?.length !== 1 || header[0].toLowerCase() !== 'nama') {
-          return json(res, 400, { error: 'CSV harus memiliki satu kolom dengan judul nama.' });
+        rows = [[payload.name.trim(), '', '', '']];
+      } else {
+        const fromExcel = typeof payload.xls === 'string';
+        const data = fromExcel
+          ? rowsFromExcel(Buffer.from(payload.xls, 'base64'))
+          : parse(payload.csv, { bom: true, skip_empty_lines: true, trim: true });
+        const [header, ...records] = data;
+        const columns = header?.map(cell => String(cell).trim().toLowerCase()) ?? [];
+        const fullHeader = columns.length === headers.length && headers.every((key, index) => key === columns[index]);
+        const legacyCsv = !fromExcel && columns.length === 1 && columns[0] === 'nama';
+        if (!fullHeader && !legacyCsv) {
+          return json(res, 400, { error: 'Gunakan kolom nama, tempat, no_whatsapp, dan notes dari template.' });
         }
-        names = rows.map(([name]) => name.trim());
+        if (records.some(record => record.slice(headers.length).some(value => String(value).trim()))) {
+          return json(res, 400, { error: 'Hapus data di luar empat kolom template.' });
+        }
+        rows = records.map(record => headers.map((_, index) => String(record[index] ?? '').trim()))
+          .filter(row => row.some(Boolean));
       }
     } catch {
-      return json(res, 400, { error: 'Format daftar tamu tidak valid.' });
+      return json(res, 400, { error: 'File tidak dapat dibaca. Gunakan template Excel .xls atau CSV.' });
     }
-    if (!names?.length || names.length > 1000) {
+    if (!rows.length || rows.length > 1000) {
       return json(res, 400, { error: 'Masukkan 1 sampai 1.000 tamu per pengiriman.' });
     }
-    const invalid = names.findIndex(name => !name || name.length > 150);
+    const invalid = rows.findIndex(([name, place, phone, notes]) =>
+      !name || name.length > 150 || place.length > 250 || phone.length > 40 || notes.length > 2000);
     if (invalid !== -1) {
-      return json(res, 400, { error: 'Nama tamu ke-' + (invalid + 1) + ' harus berisi 1 sampai 150 karakter.' });
+      return json(res, 400, { error: 'Data tamu ke-' + (invalid + 1) + ' tidak valid. Nama wajib diisi. Batas karakter nama, tempat, nomor, dan notes adalah 150, 250, 40, dan 2.000.' });
     }
-    saveGuests(names);
-    return json(res, 201, { count: names.length });
+    saveGuests(rows);
+    return json(res, 201, { count: rows.length });
   }
   if (req.method === 'POST' && req.url === '/verify') {
     const body = await readBody(req, 512);
@@ -167,5 +192,3 @@ const port = Number(process.env.PORT ?? 3000);
 server.listen(port, process.env.RAILWAY_ENVIRONMENT_ID ? '0.0.0.0' : '127.0.0.1', () => {
   console.log('Verifikator tersedia di http://localhost:' + server.address().port);
 });
-
-

@@ -30,6 +30,12 @@ async function loadGuests() {
       download.textContent = 'Unduh QR';
       download.setAttribute('aria-label', 'Unduh QR untuk ' + guest.name);
       info.append(name, status, code);
+      for (const field of ['tempat', 'no_whatsapp', 'notes']) {
+        if (!guest[field]) continue;
+        const detail = document.createElement('small');
+        detail.textContent = guest[field];
+        info.append(detail);
+      }
       row.append(info, download);
       return row;
     }));
@@ -75,11 +81,17 @@ importForm.addEventListener('submit', event => {
   const file = document.querySelector('#csv').files[0];
   if (file.size > 250_000) {
     feedback.hidden = false;
-    feedback.textContent = 'File CSV melebihi batas 250 KB.';
+    feedback.textContent = 'File melebihi batas 250 KB.';
     return;
   }
-  void save(importForm, async () => ({ csv: await file.text() }));
+  void save(importForm, async () => {
+    if (file.name.toLowerCase().endsWith('.xls')) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
+      return { xls: btoa(binary) };
+    }
+    return { csv: await file.text() };
+  });
 });
 refresh.addEventListener('click', loadGuests);
 void loadGuests();
-
