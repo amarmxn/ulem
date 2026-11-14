@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daftar Tamu · Verifikator Undangan</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/admin.js"></script>
+</head>
+<body>
+  <main class="admin">
+    <div class="topbar"><div class="brand"><span aria-hidden="true">◈</span> Pintu Acara</div><form method="post" action="/logout"><button type="submit">Keluar</button></form></div><nav aria-label="Navigasi"><a href="/">Verifikator</a> <strong>Daftar tamu</strong></nav>
+    <header class="hero"><p class="eyebrow">PINTU ACARA / OPERASIONAL</p><h1>Daftar tamu</h1><p>Tambahkan tamu dan unduh QR undangan untuk dicetak.</p></header>
+    <section class="guest-forms" aria-label="Tambah tamu">
+      <form id="add">
+        <label for="name">Nama tamu</label>
+        <input id="name" required maxlength="150" autocomplete="off" placeholder="Contoh: Ayu Pratama">
+        <button>Tambah tamu</button>
+      </form>
+      <form id="import">
+        <label for="csv">Impor CSV dengan kolom <code>nama</code></label>
+        <input id="csv" type="file" accept=".csv,text/csv" required>
+        <button>Impor daftar tamu</button>
+      </form>
+      <p id="feedback" role="status" hidden></p>
+    </section>
+    <section aria-labelledby="guest-heading">
+      <div class="list-header">
+        <h2 id="guest-heading">Tamu terdaftar</h2>
+        <button id="refresh" type="button">Muat ulang</button>
+      </div>
+      <p id="summary" role="status"></p>
+      <ul id="guests"></ul>
+    </section>
+  </main>
+</body>
+</html>
+

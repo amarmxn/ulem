@@ -1,0 +1,16 @@
+{
+  "name": "proto-invitation",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "csv-parse": "7.0.3",
+    "jsqr": "1.4.0",
+    "qrcode": "1.5.4"
+  }
+}

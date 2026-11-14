@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Masuk · Pintu Acara</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/login.js"></script>
+</head>
+<body class="login-page">
+  <main class="login">
+    <div class="brand"><span aria-hidden="true">◈</span> Pintu Acara</div>
+    <section class="login-card">
+      <p class="eyebrow">AKSES PANITIA</p>
+      <h1>Selamat datang</h1>
+      <p class="muted">Masuk untuk menyiapkan undangan dan mencatat kedatangan tamu.</p>
+      <form method="post" action="/login">
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" required>
+        <label for="password">Password</label>
+        <input id="password" type="password" name="password" autocomplete="current-password" required>
+        <p id="login-error" class="form-error" role="alert" hidden>Username atau password salah.</p>
+        <button type="submit">Masuk</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

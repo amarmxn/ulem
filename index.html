@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verifikator Undangan</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/jsqr.js"></script>
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <main>
+    <div class="topbar"><div class="brand"><span aria-hidden="true">◈</span> Pintu Acara</div><form method="post" action="/logout"><button type="submit">Keluar</button></form></div><nav aria-label="Navigasi"><strong>Verifikator</strong> <a href="/panitia">Daftar tamu</a></nav><header class="hero"><p class="eyebrow">PINTU ACARA / OPERASIONAL</p><h1>Verifikasi undangan</h1>
+    <p>Pindai QR pada kartu undangan untuk mencatat kedatangan tamu.</p></header>
+    <section aria-label="Pemindai QR">
+      <video playsinline muted hidden></video>
+      <button id="camera" type="button">Buka kamera</button>
+      <p id="camera-status" role="status"></p>
+      <form id="verify-form">
+        <label for="code">Atau masukkan kode undangan</label>
+        <input id="code" autocomplete="off" autocapitalize="characters" placeholder="Contoh: DEMO-001" required>
+        <button type="submit">Verifikasi kode</button>
+      </form>
+    </section>
+    <section id="result" role="status" aria-live="polite" hidden></section>
+  </main>
+</body>
+</html>
+
+
+
