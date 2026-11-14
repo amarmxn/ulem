@@ -25,3 +25,6 @@
 @media print {
   .sheet + .sheet { break-before: page; }
 }
+
+.card-qr { text-align: center; }
+.card-qr span { display: block; font: bold 9pt monospace; letter-spacing: .08em; }

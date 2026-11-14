@@ -24,7 +24,7 @@ async function loadGuests() {
         : 'Belum check-in';
       const code = document.createElement('small');
       code.className = 'guest-code';
-      code.textContent = guest.code;
+      code.textContent = 'Kode check-in: ' + guest.manual_code;
       const download = document.createElement('a');
       download.href = '/qr/' + encodeURIComponent(guest.code) + '.png';
       download.textContent = 'Unduh QR';

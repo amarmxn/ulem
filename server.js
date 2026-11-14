@@ -1,5 +1,5 @@
 const http = require('node:http');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, randomInt } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
@@ -29,10 +29,38 @@ if (!process.env.RAILWAY_ENVIRONMENT_ID) {
   for (const [code, name] of Object.entries(sampleGuests)) seedGuest.run(code, name);
 }
 
-const addGuest = db.prepare('INSERT INTO guests (code, name, tempat, no_whatsapp, notes) VALUES (?, ?, ?, ?, ?)');
-const findGuest = db.prepare('SELECT name FROM guests WHERE code = ?');
+db.exec('BEGIN IMMEDIATE');
+try {
+  const fields = db.prepare('PRAGMA table_info(guests)').all();
+  if (!fields.some(field => field.name === 'manual_code')) {
+    db.exec('ALTER TABLE guests ADD COLUMN manual_code TEXT');
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS guests_manual_code ON guests (manual_code)');
+  const updateCode = db.prepare('UPDATE guests SET manual_code = ? WHERE code = ?');
+  for (const { code } of db.prepare('SELECT code FROM guests WHERE manual_code IS NULL').all()) {
+    updateCode.run(newManualCode(), code);
+  }
+  db.exec('COMMIT');
+} catch (error) {
+  db.exec('ROLLBACK');
+  throw error;
+}
+
+function newManualCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const exists = db.prepare('SELECT 1 FROM guests WHERE manual_code = ?');
+  let code;
+  do {
+    code = Array.from({ length: 5 }, () => alphabet[randomInt(alphabet.length)]).join('');
+  } while (exists.get(code));
+  return code;
+}
+
+const addGuest = db.prepare('INSERT INTO guests (code, name, tempat, no_whatsapp, notes, manual_code) VALUES (?, ?, ?, ?, ?, ?)');
+const findGuest = db.prepare('SELECT code, name FROM guests WHERE code = ?');
+const findByManualCode = db.prepare('SELECT code, name FROM guests WHERE manual_code = ?');
 const listGuests = db.prepare(`
-  SELECT guests.code, guests.name, guests.tempat, guests.no_whatsapp, guests.notes, checkins.time
+  SELECT guests.code, guests.manual_code, guests.name, guests.tempat, guests.no_whatsapp, guests.notes, checkins.time
   FROM guests LEFT JOIN checkins USING (code)
   ORDER BY guests.rowid
 `);
@@ -65,9 +93,9 @@ async function readBody(req, limit) {
 }
 
 function saveGuests(rows) {
-  db.exec('BEGIN');
+  db.exec('BEGIN IMMEDIATE');
   try {
-    for (const row of rows) addGuest.run(randomBytes(16).toString('hex'), ...row);
+    for (const row of rows) addGuest.run(randomBytes(16).toString('hex'), ...row, newManualCode());
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -164,14 +192,14 @@ async function handle(req, res) {
     const body = await readBody(req, 512);
     if (body === null) return json(res, 413, { error: 'Kode terlalu panjang.' });
     const code = body.trim();
-    const guest = findGuest.get(code);
+    const guest = findGuest.get(code) ?? findByManualCode.get(code.toUpperCase());
     if (!guest) return json(res, 200, { state: 'invalid' });
     const time = new Date().toISOString();
-    const { changes } = checkIn.run(code, time);
+    const { changes } = checkIn.run(guest.code, time);
     return json(res, 200, {
       state: changes ? 'approved' : 'duplicate',
       name: guest.name,
-      time: changes ? time : findCheckIn.get(code).time,
+      time: changes ? time : findCheckIn.get(guest.code).time,
     });
   }
   const qr = req.method === 'GET' && /^\/qr\/([a-f0-9]{32}|DEMO-\d{3})\.png$/.exec(req.url);

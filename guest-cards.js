@@ -10,7 +10,7 @@ async function guestCards(guests, css) {
   const cards = await Promise.all(guests.map(async guest => {
     const qr = await QRCode.toDataURL(guest.code, { margin: 4, scale: 8 });
     return `<article class="card"><div><h2>${escapeHtml(guest.name)}</h2>
-      <p>${escapeHtml(guest.tempat)}</p></div><img src="${qr}" alt="QR undangan"></article>`;
+      <p>${escapeHtml(guest.tempat)}</p></div><div class="card-qr"><img src="${qr}" alt="QR undangan"><span>${escapeHtml(guest.manual_code)}</span></div></article>`;
   }));
 
   const sheets = [];
